@@ -224,9 +224,19 @@ exports.doAdmission = async (req, res, next) => {
     insertData.appln_DateTime = new Date();
 
     // 4) Insert into the default (per-year) table, filtered to that table's columns.
-    const defaultCols = await M.listFields(M.pools.defaultDb, 'isdi_admsn_appln');
+    const academicYear = insertData.appln_academicYear;
+    let perYearTable = null;
+    if (String(academicYear) === '10') perYearTable = 'isdi_admsn_appln_uni';
+    else if (String(academicYear) === '11') perYearTable = 'isdi_admsn_appln_ay_11';
+
+    // Filter against the per-year table's OWN columns (it has a reduced schema
+    // compared with the master isdi_admsn_appln), otherwise master-only columns
+    // like appln_school leak into the INSERT and MySQL throws ER_BAD_FIELD_ERROR.
     const insertData1 = {};
-    for (const k of Object.keys(insertData)) if (defaultCols.includes(k)) insertData1[k] = insertData[k];
+    if (perYearTable) {
+      const defaultCols = await M.listFields(M.pools.defaultDb, perYearTable);
+      for (const k of Object.keys(insertData)) if (defaultCols.includes(k)) insertData1[k] = insertData[k];
+    }
 
     // agent referral.
     const agent = session.agent;
@@ -237,11 +247,6 @@ exports.doAdmission = async (req, res, next) => {
     session.agent = undefined;
 
     insertData1.appln_userfile = session.userfile;
-
-    const academicYear = insertData.appln_academicYear;
-    let perYearTable = null;
-    if (String(academicYear) === '10') perYearTable = 'isdi_admsn_appln_uni';
-    else if (String(academicYear) === '11') perYearTable = 'isdi_admsn_appln_ay_11';
 
     let applnID;
     if (perYearTable) applnID = await M.insert(M.pools.defaultDb, perYearTable, insertData1);
