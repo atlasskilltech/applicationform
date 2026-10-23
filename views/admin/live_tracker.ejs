@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f8fafc; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#0b1120; --card:#111827; --ink:#e5e7eb; --muted:#94a3b8; --line:#1f2937; } }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+    .wrap { max-width:1200px; margin:0 auto; padding:24px 16px; }
+    h1 { font-size:20px; margin:0 0 4px; }
+    .sub { color:var(--muted); margin:0 0 20px; font-size:13px; }
+    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-bottom:20px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+    .card .n { font-size:26px; font-weight:700; }
+    .card .l { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+    table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+    th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); font-size:13px; white-space:nowrap; }
+    th { color:var(--muted); font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:.04em; }
+    tr:last-child td { border-bottom:0; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; }
+    .live { background:#dcfce7; color:#166534; } .idle { background:#fef9c3; color:#854d0e; }
+    .inactive { background:#e2e8f0; color:#475569; } .abandoned { background:#fee2e2; color:#991b1b; }
+    .submitted { background:#dbeafe; color:#1e40af; }
+    .muted { color:var(--muted); }
+    .bar { height:6px; background:var(--line); border-radius:999px; overflow:hidden; width:80px; }
+    .bar > span { display:block; height:100%; background:#6366f1; }
+    .top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:4px; }
+    .refresh { color:var(--muted); font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1><%= title %></h1>
+      <span class="refresh" id="refresh">loading…</span>
+    </div>
+    <p class="sub">Today's application sessions — auto-refreshes every 10s.</p>
+
+    <div class="cards" id="cards"></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Code</th><th>Status</th><th>Name</th><th>Mobile</th><th>Email</th>
+          <th>Step</th><th>Progress</th><th>School</th><th>Location</th><th>Idle</th>
+        </tr>
+      </thead>
+      <tbody id="rows"><tr><td colspan="10" class="muted">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <script>
+    var ADMIN_KEY = new URLSearchParams(location.search).get('key') || '';
+    function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    function idle(sec){ sec=+sec||0; if(sec<60) return sec+'s'; if(sec<3600) return Math.floor(sec/60)+'m'; return Math.floor(sec/3600)+'h'; }
+
+    function card(n, l){ return '<div class="card"><div class="n">'+(n==null?0:n)+'</div><div class="l">'+l+'</div></div>'; }
+
+    function load(){
+      fetch('/tracker/live_data' + (ADMIN_KEY ? ('?key='+encodeURIComponent(ADMIN_KEY)) : ''), { credentials:'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          var c = d.counts || {};
+          document.getElementById('cards').innerHTML =
+            card(c.live,'Live') + card(c.idle,'Idle') + card(c.submitted,'Submitted') +
+            card(c.abandoned,'Abandoned') + card(c.total,'Total');
+
+          var rows = (d.sessions || []).map(function(s){
+            var name = [s.first_name, s.last_name].filter(Boolean).join(' ') || '<span class="muted">—</span>';
+            var loc = [s.geo_city, s.geo_country].filter(Boolean).join(', ') || '<span class="muted">—</span>';
+            var prog = (+s.progress_percent||0);
+            return '<tr>'
+              + '<td class="muted">'+esc(s.resume_code)+'</td>'
+              + '<td><span class="pill '+esc(s.live_status)+'">'+esc(s.live_status)+'</span></td>'
+              + '<td>'+name+'</td>'
+              + '<td>'+(esc(s.mobile)||'<span class="muted">—</span>')+'</td>'
+              + '<td>'+(esc(s.email)||'<span class="muted">—</span>')+'</td>'
+              + '<td class="muted">'+esc(s.current_step)+'</td>'
+              + '<td><div class="bar"><span style="width:'+prog+'%"></span></div></td>'
+              + '<td>'+(esc(s.school_full_name)||'<span class="muted">—</span>')+'</td>'
+              + '<td>'+loc+'</td>'
+              + '<td class="muted">'+idle(s.idle_seconds)+'</td>'
+              + '</tr>';
+          }).join('');
+          document.getElementById('rows').innerHTML = rows || '<tr><td colspan="10" class="muted">No sessions today.</td></tr>';
+          document.getElementById('refresh').textContent = 'updated ' + new Date().toLocaleTimeString();
+        })
+        .catch(function(){ document.getElementById('refresh').textContent = 'refresh failed'; });
+    }
+    load();
+    setInterval(load, 10000);
+  </script>
+</body>
+</html>

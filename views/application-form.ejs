@@ -2449,7 +2449,9 @@ function showAddNewID(value) {
 <script>
 (function () {
   'use strict';
-  var BASE = 'https://www.atlasuniversity.edu.in/applicationform/';
+  // Same-origin: the session tracker now runs in this Node app (routes/tracker.js),
+  // so there is no cross-origin call and no CORS involved.
+  var BASE = '/';
   var KEY = 'atlas_track_token';
   var token = null;
   var currentStep = 'stud-info';
@@ -2462,7 +2464,7 @@ function showAddNewID(value) {
   function load()   { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
 
   function post(url, data) {
-    return fetch(BASE + 'index.php/tracker/' + url, {
+    return fetch(BASE + 'tracker/' + url, {
       method: 'POST',
       credentials: 'same-origin',
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
