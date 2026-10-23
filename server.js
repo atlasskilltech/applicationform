@@ -7,6 +7,7 @@ const session = require('express-session');
 const expressLayouts = require('express-ejs-layouts');
 
 const applicationRoutes = require('./routes/application');
+const trackerRoutes = require('./routes/tracker');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,6 +35,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.resolve(process.env.UPLOAD_DIR || 'uploads')));
 
 // ---- Routes ----
+// Tracker is mounted first so the application router's catch-all /:agent
+// (which would otherwise swallow /tracker/*) does not shadow it.
+app.use('/tracker', trackerRoutes);
 app.use('/', applicationRoutes);
 
 // ---- 404 ----
