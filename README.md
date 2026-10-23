@@ -18,13 +18,10 @@ npm install
 
 # 2. configure
 copy .env.example .env        # Windows   (cp .env.example .env on mac/linux)
-# then edit .env — set DB_USER / DB_PASSWORD / DB_NAME to your MySQL
+# then edit .env — point DB_HOST / DB_USER / DB_PASSWORD / DB_NAME at your
+# EXISTING ATLAS database (the one that already has your tables)
 
-# 3. (optional) create the sample table to test end-to-end today
-#    skip this once you've wired in your real tables
-mysql -u root -p < schema.sql
-
-# 4. run
+# 3. run
 npm run dev        # auto-reload (nodemon)
 #   or
 npm start
@@ -37,7 +34,6 @@ npm start
 ```
 applicationform/
 ├── server.js                      # app entry
-├── schema.sql                     # sample table (drop once real tables are wired)
 ├── config/
 │   ├── db.js                      # MySQL pool  ← point .env at your DB
 │   ├── formData.js                # dropdown option lists (swap for DB later)
@@ -63,8 +59,9 @@ Everything else can stay as-is. When you share your CodeIgniter tables:
    static arrays with `SELECT`s. The views already loop over these lists, so no
    view changes are needed.
 
-Field names used by the form (the `name="..."` attributes) are listed as columns
-in `schema.sql` — use that as the reference when mapping to your columns.
+The form field names (the `name="..."` attributes in `views/application-form.ejs`)
+are the reference when you map the form to your existing columns. Share your table
+structure + your CodeIgniter controller/model and I'll wire the INSERT to match.
 
 ## Notes
 - Server-side validation lives in `controllers/applicationController.js`

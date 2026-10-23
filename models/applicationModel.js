@@ -7,8 +7,8 @@ const db = require('../config/db');
  * ====================================================================
  *
  * Right now create() inserts into a single `applications` table whose columns
- * match the form field names (see schema.sql for that table). When you give me
- * your real CodeIgniter tables, we change the mapping below:
+ * match the form field names (the `name="..."` attributes in the form view).
+ * When you give me your real CodeIgniter tables, we change the mapping below:
  *
  *   - rename the table ('applications' -> your table name)
  *   - map each `record.xxx` to your actual column names
