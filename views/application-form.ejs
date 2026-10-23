@@ -10,24 +10,53 @@
   }
 %>
 
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="hero-left">
+    <span class="hero-pill"><span class="dot"></span> Admissions Open</span>
+    <h1 class="hero-title">ATLAS SkillTech<br>University <span class="grad">Application Form</span></h1>
+    <p class="hero-lead">One application, five quick sections. Fill it in order, upload your documents, and submit — your progress is tracked on the left as you go.</p>
+    <div class="hero-actions">
+      <a href="#applicationForm" class="btn btn-primary">Start your application <span aria-hidden="true">&rarr;</span></a>
+      <a href="#applicationForm" class="btn btn-outline">Continue Application <span aria-hidden="true">&rarr;</span></a>
+    </div>
+  </div>
+  <div class="hero-right" aria-hidden="true">
+    <div class="hero-collage">
+      <div class="tile tile-a"></div>
+      <div class="tile tile-b"></div>
+      <div class="tile tile-c"></div>
+      <div class="hero-caption">
+        <strong>Learn by doing</strong>
+        <span>Industry-led programmes at the ATLAS campus</span>
+      </div>
+    </div>
+  </div>
+</section>
+
 <form id="applicationForm" class="app-form" action="/submit" method="POST" enctype="multipart/form-data" novalidate>
   <div class="app-layout">
 
     <!-- Sidebar progress -->
     <aside class="app-sidebar">
       <div class="sidebar-card">
-        <p class="sidebar-label">ON THIS PAGE</p>
+        <p class="sidebar-label"><span class="list-ico" aria-hidden="true"></span> ON THIS PAGE</p>
         <h3>Application</h3>
+        <div class="progress-row">
+          <span>PROGRESS</span>
+          <span id="progressText">0 of 5 done</span>
+        </div>
+        <div class="progress-bar"><span id="progressFill"></span></div>
         <ol class="step-nav" id="stepNav">
-          <li data-step="1" class="active">Program &amp; Profile</li>
-          <li data-step="2">Student Details</li>
-          <li data-step="3">Education Details</li>
-          <li data-step="4">Parent Details</li>
-          <li data-step="5">Declaration &amp; Submit</li>
+          <li data-step="1" class="active"><a href="#section-1">Program &amp; Profile</a></li>
+          <li data-step="2"><a href="#section-2">Student Details</a></li>
+          <li data-step="3"><a href="#section-3">Education Details</a></li>
+          <li data-step="4"><a href="#section-4">Parent Details</a></li>
+          <li data-step="5"><a href="#section-5">Declaration &amp; Submit</a></li>
         </ol>
       </div>
       <div class="sidebar-card handy">
-        <h4>Documents you'll need</h4>
+        <h4><span class="handy-label">KEEP HANDY</span>Documents you'll need</h4>
         <ul>
           <li>Passport-style photo &middot; max 5 MB</li>
           <li>Class X marksheet</li>
@@ -40,7 +69,7 @@
     <div class="app-body">
 
       <!-- ============ SECTION 1 ============ -->
-      <section class="form-section active" data-step="1">
+      <section class="form-section" id="section-1" data-step="1">
         <header class="section-head">
           <span class="section-no">01</span>
           <div><h2>Program &amp; Profile</h2><p>Choose the school, programme and degree you are applying to</p></div>
@@ -83,7 +112,7 @@
       </section>
 
       <!-- ============ SECTION 2 ============ -->
-      <section class="form-section" data-step="2">
+      <section class="form-section" id="section-2" data-step="2">
         <header class="section-head">
           <span class="section-no">02</span>
           <div><h2>Student Details</h2><p>Your name, address and contact information</p></div>
@@ -192,7 +221,7 @@
       </section>
 
       <!-- ============ SECTION 3 ============ -->
-      <section class="form-section" data-step="3">
+      <section class="form-section" id="section-3" data-step="3">
         <header class="section-head">
           <span class="section-no">03</span>
           <div><h2>Education Details</h2><p>Class X, Class XII and graduation records</p></div>
@@ -264,7 +293,7 @@
       </section>
 
       <!-- ============ SECTION 4 ============ -->
-      <section class="form-section" data-step="4">
+      <section class="form-section" id="section-4" data-step="4">
         <header class="section-head">
           <span class="section-no">04</span>
           <div><h2>Parent Details</h2><p>Father, mother or guardian — plus your statement of purpose</p></div>
@@ -343,7 +372,7 @@
       </section>
 
       <!-- ============ SECTION 5 ============ -->
-      <section class="form-section" data-step="5">
+      <section class="form-section" id="section-5" data-step="5">
         <header class="section-head">
           <span class="section-no">05</span>
           <div><h2>Declaration &amp; Submit</h2><p>Confirm your details are accurate, then send your application</p></div>
@@ -363,12 +392,10 @@
         <%- err('undertaking') %>
       </section>
 
-      <!-- Nav buttons -->
+      <!-- Submit -->
       <div class="form-nav">
-        <button type="button" class="btn btn-ghost" id="prevBtn" style="display:none;">&larr; Back</button>
-        <div class="spacer"></div>
-        <button type="button" class="btn btn-primary" id="nextBtn">Next &rarr;</button>
-        <button type="submit" class="btn btn-submit" id="submitBtn" style="display:none;">Submit application</button>
+        <p class="form-nav-note">Review every section above, then submit. You can scroll back up at any time.</p>
+        <button type="submit" class="btn btn-submit" id="submitBtn">Submit application</button>
       </div>
 
     </div>
