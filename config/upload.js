@@ -1,47 +1,49 @@
-// config/upload.js — multer setup for file fields (profile image + marksheets)
+// config/upload.js — multer handlers for the AJAX file endpoints.
+//
+// The client (application-form.js) uploads a single file under the field name "file"
+// to each uploadFile* endpoint. Mirroring the CodeIgniter upload library, files are
+// written to the top-level `uploads/` directory under a random ("encrypted") name
+// that keeps the original extension; the controller then stashes that filename in the
+// session (userfile / tenmarksheet / xiimarksheet / ...), exactly as the CI app did.
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const multer = require('multer');
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || 'public/uploads';
-const MAX_MB = Number(process.env.MAX_FILE_SIZE_MB) || 5;
-
-// Make sure the upload folder exists.
+const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
 fs.mkdirSync(path.resolve(UPLOAD_DIR), { recursive: true });
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.resolve(UPLOAD_DIR)),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const safe = file.fieldname + '-' + Date.now() + '-' + Math.round(Math.random() * 1e9) + ext;
-    cb(null, safe);
+    cb(null, crypto.randomBytes(16).toString('hex') + ext); // encrypt_name = TRUE
   },
 });
 
-const allowed = {
-  profile_image: ['.jpg', '.jpeg', '.png'],
-  class_x_marksheet: ['.pdf', '.jpg', '.jpeg', '.png'],
-  class_xii_marksheet: ['.pdf', '.jpg', '.jpeg', '.png'],
-};
-
-function fileFilter(req, file, cb) {
-  const ext = path.extname(file.originalname).toLowerCase();
-  const ok = (allowed[file.fieldname] || []).includes(ext);
-  if (ok) return cb(null, true);
-  cb(new Error(`Invalid file type for ${file.fieldname}. Allowed: ${(allowed[file.fieldname] || []).join(', ')}`));
+// Build a single-file ("file") multer middleware with the given allowed extensions
+// and max size (in KB, as CI configured it).
+function makeUploader(allowedExts, maxKB) {
+  const allowed = allowedExts.map((e) => '.' + e.toLowerCase());
+  return multer({
+    storage,
+    limits: { fileSize: maxKB * 1024 },
+    fileFilter: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (allowed.includes(ext)) return cb(null, true);
+      cb(new Error('The filetype you are attempting to upload is not allowed.'));
+    },
+  }).single('file');
 }
 
-const upload = multer({
-  storage,
-  fileFilter,
-  limits: { fileSize: MAX_MB * 1024 * 1024 },
-});
+// One uploader per endpoint, matching the CI allowed_types / max_size.
+const uploaders = {
+  userfile: makeUploader(['jpg', 'jpeg', 'png'], 20000),              // uploadFile  (profile photo)
+  tenmarksheet: makeUploader(['jpg', 'jpeg', 'png', 'pdf'], 102400),  // uploadFile1
+  xiimarksheet: makeUploader(['jpg', 'jpeg', 'png', 'pdf'], 102400),  // uploadFile2
+  special_assistance_doc: makeUploader(['jpg', 'jpeg', 'png', 'pdf'], 102400), // uploadFile3
+  gap_year_certificate: makeUploader(['jpg', 'jpeg', 'png', 'pdf'], 102400),   // uploadFile4
+  isdi_summer_certifate: makeUploader(['jpg', 'jpeg', 'png', 'pdf'], 12048),   // uploadURLCerticate
+};
 
-// The three file inputs on the form.
-const applicationUpload = upload.fields([
-  { name: 'profile_image', maxCount: 1 },
-  { name: 'class_x_marksheet', maxCount: 1 },
-  { name: 'class_xii_marksheet', maxCount: 1 },
-]);
-
-module.exports = { applicationUpload };
+module.exports = { uploaders, UPLOAD_DIR };
