@@ -1,36 +1,50 @@
 // config/db.js
-// MySQL connection pool (mysql2 / promise API).
-// Point the .env values at your EXISTING ATLAS database — this file does not
-// create or migrate any tables, it only connects.
+// Two MySQL connection pools (mysql2 / promise API), mirroring the two CodeIgniter
+// database groups the original app used:
+//
+//   - `diceapp`  : the primary admissions database. Almost every read (schools,
+//                  certifications, specialisations, countries/states/cities, agents,
+//                  academic years) and the master writes (isdi_admsn_appln,
+//                  isdi_admsn_documents_uploads, applicant status) go here.
+//   - `defaultDb`: the secondary store that receives the per-year application row
+//                  (isdi_admsn_appln_uni / isdi_admsn_appln_ay_11) and whose
+//                  insert_id drives the application id.
+//
+// Point the .env values at your EXISTING ATLAS databases — this file only connects,
+// it never creates or migrates tables.
 
 require('dotenv').config();
 const mysql = require('mysql2');
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'atlas_applications',
-  waitForConnections: true,
-  connectionLimit: Number(process.env.DB_CONNECTION_LIMIT) || 10,
-  queueLimit: 0,
-  dateStrings: true,
-});
+function makePool(prefix, fallbackName) {
+  return mysql.createPool({
+    host: process.env[`${prefix}_DB_HOST`] || process.env.DB_HOST || 'localhost',
+    port: Number(process.env[`${prefix}_DB_PORT`] || process.env.DB_PORT) || 3306,
+    user: process.env[`${prefix}_DB_USER`] || process.env.DB_USER || 'root',
+    password: process.env[`${prefix}_DB_PASSWORD`] || process.env.DB_PASSWORD || '',
+    database: process.env[`${prefix}_DB_NAME`] || process.env.DB_NAME || fallbackName,
+    waitForConnections: true,
+    connectionLimit: Number(process.env[`${prefix}_DB_CONNECTION_LIMIT`] || process.env.DB_CONNECTION_LIMIT) || 10,
+    queueLimit: 0,
+    dateStrings: true,
+  }).promise();
+}
 
-// promise() gives us async/await (await pool.query(...)).
-const db = pool.promise();
+const diceapp = makePool('DICEAPP', 'diceapp');
+const defaultDb = makePool('DEFAULT', 'atlas_applications');
 
-// Optional: verify the connection at startup so a bad password fails loudly.
+// Verify both connections at startup so a bad password fails loudly (but never crashes).
 (async () => {
-  try {
-    const conn = await db.getConnection();
-    console.log(`[db] Connected to MySQL "${process.env.DB_NAME}" on ${process.env.DB_HOST}`);
-    conn.release();
-  } catch (err) {
-    console.error('[db] MySQL connection FAILED:', err.code, '-', err.message);
-    console.error('[db] Check your .env DB_* values.');
+  for (const [name, pool] of [['diceapp', diceapp], ['default', defaultDb]]) {
+    try {
+      const conn = await pool.getConnection();
+      console.log(`[db] Connected to MySQL group "${name}"`);
+      conn.release();
+    } catch (err) {
+      console.error(`[db] MySQL group "${name}" connection FAILED:`, err.code, '-', err.message);
+      console.error('[db] Check your .env DB_* values.');
+    }
   }
 })();
 
-module.exports = db;
+module.exports = { diceapp, defaultDb };

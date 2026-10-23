@@ -1,6 +1,28 @@
-<section class="success-card">
-  <div class="success-tick">&#10003;</div>
-  <h1>Application submitted</h1>
-  <p>Thank you for applying to ATLAS SkillTech University. Your application has been received. Our admissions team will be in touch with the next steps over email.</p>
-  <a class="btn btn-primary" href="/">Submit another application</a>
-</section>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= typeof title !== 'undefined' ? title : 'Application Submitted' %></title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style> body { font-family: Inter, ui-sans-serif, system-ui; } </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800 antialiased">
+  <main class="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-4 text-center">
+    <span class="grid h-16 w-16 place-items-center rounded-2xl bg-emerald-100 text-emerald-600">
+      <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    </span>
+    <h1 class="mt-6 text-3xl font-semibold tracking-tight text-slate-900">Application received</h1>
+    <p class="mt-3 max-w-md text-sm leading-relaxed text-slate-600">
+      Thank you for applying to ATLAS SkillTech University. Your application has been submitted successfully
+      <% if (typeof applnID !== 'undefined' && applnID) { %>— your application ID is <strong class="text-slate-900"><%= applnID %></strong><% } %>.
+      A confirmation has been sent to your email and mobile number.
+    </p>
+    <a href="https://www.atlasskilltech.app/admissions/login" class="mt-8 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/25 transition hover:from-indigo-500 hover:to-cyan-400">
+      Continue to payment &amp; login
+    </a>
+  </main>
+</body>
+</html>

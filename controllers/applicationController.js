@@ -1,152 +1,308 @@
 // controllers/applicationController.js
-const formData = require('../config/formData');
-const ApplicationModel = require('../models/applicationModel');
+// Node port of the CodeIgniter isme/Applications controller: renders the form,
+// serves the dropdown-cascade + upload AJAX endpoints, and runs the full
+// doAdmission() submission pipeline.
+const M = require('../models/applicationModel');
+const { validateAdmission } = require('./validation');
+const recaptcha = require('../services/recaptcha');
+const s3 = require('../services/s3');
+const sms = require('../services/sms');
+const mailer = require('../services/mailer');
 
-/**
- * Loads the option lists for every dropdown/radio on the form.
- *
- * Right now this returns the static arrays from config/formData.js.
- * When you share your master tables, replace the body with DB look-ups, e.g.:
- *
- *   const [schools] = await db.query('SELECT id, name FROM schools WHERE active = 1');
- *   ...
- *   return { schools, programs, ... };
- *
- * The views already loop over these, so swapping the source needs no view changes
- * (just make each item {id, name} if you want the id as the <option value>).
- */
-async function loadFormData() {
-  return { ...formData };
+const BASE_ASSET_URL = process.env.BASE_ASSET_URL || 'https://www.atlasuniversity.edu.in/applicationform/';
+const UPLOAD_DIR = process.env.UPLOAD_DIR || 'uploads';
+
+// ---- small helpers for the {option} JSON the client injects into selects ----
+function opt(value, text) { return `<option value='${value}'>${text}</option>`; }
+function optionsFrom(rows, valueKey, textKey) {
+  let s = "<option value=''>Please Select</option>";
+  (rows || []).forEach((r) => { s += opt(r[valueKey], r[textKey]); });
+  return s;
 }
+function extOf(name) { const i = String(name || '').lastIndexOf('.'); return i >= 0 ? String(name).slice(i + 1) : ''; }
+function ucwords(s) { return String(s || '').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()); }
 
-// GET /  -> render the form
-exports.showForm = async (req, res, next) => {
+// ============================ PAGE ============================
+exports.index = async (req, res, next) => {
   try {
-    const data = await loadFormData();
-    res.render('application-form', {
-      title: 'ATLAS SkillTech University — Application Form',
-      data,
-      old: {},      // sticky values on re-render
-      errors: {},   // field -> message
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// POST /submit -> validate + save
-exports.submitForm = async (req, res, next) => {
-  try {
-    const body = req.body;
-    const files = req.files || {};
-
-    const errors = validate(body, files);
-
-    if (Object.keys(errors).length > 0) {
-      const data = await loadFormData();
-      return res.status(422).render('application-form', {
-        title: 'ATLAS SkillTech University — Application Form',
-        data,
-        old: body,
-        errors,
-      });
+    // Agent capture (…/<agentCode>): store in session, or bounce home if unknown.
+    const agentCode = req.params.agent;
+    if (agentCode) {
+      const agent = await M.getAgent(agentCode);
+      if (agent) req.session.agent = agent;
+      else return res.redirect('/');
     }
 
-    // Build the record passed to the model. File fields store the saved path.
-    const record = {
-      ...body,
-      profile_image: files.profile_image ? '/uploads/' + files.profile_image[0].filename : null,
-      class_x_marksheet: files.class_x_marksheet ? '/uploads/' + files.class_x_marksheet[0].filename : null,
-      class_xii_marksheet: files.class_xii_marksheet ? '/uploads/' + files.class_xii_marksheet[0].filename : null,
-    };
+    req.session.userfile = undefined; // CI unsets userfile on page load
+    const agent = req.session.agent || null;
 
-    const insertId = await ApplicationModel.create(record);
-    console.log('[submit] saved application id =', insertId);
+    const [countries, schools, certification, acedmic, state] = await Promise.all([
+      M.getCountries(),
+      M.getSchoolForUni(0, agent),
+      M.getCertificationForUni(agent),
+      M.getAcedmicYear(),
+      M.getStateCity(99, 'state'),
+    ]);
 
-    return res.redirect('/success');
-  } catch (err) {
-    next(err);
-  }
+    res.render('application-form', {
+      layout: false,
+      baseUrl: BASE_ASSET_URL,
+      agent,
+      countries, schools, certification, acedmic, state,
+      abrivation: [], specialisations: [],
+    });
+  } catch (err) { next(err); }
 };
 
-// GET /success
-exports.showSuccess = (req, res) => {
-  res.render('success', { title: 'Application Submitted' });
+exports.showPayments = (req, res) => {
+  res.render('success', { title: 'Application Submitted', layout: false, applnID: req.session.applnID || '' });
 };
 
-// --------------------------------------------------------------------------
-// Server-side validation — mirrors the required fields in the screenshot.
-// Keep this in sync with public/js/form.js (client-side) but never trust the
-// client: this is the real gate.
-// --------------------------------------------------------------------------
-function validate(b, files) {
-  const e = {};
-  const req = (key, label) => {
-    if (!b[key] || String(b[key]).trim() === '') e[key] = `${label} is required.`;
+// ====================== AJAX: cascading selects ======================
+exports.getStateCity = async (req, res, next) => {
+  try {
+    const { value, type } = req.body;
+    const rows = await M.getStateCity(value, type);
+    let option = "<option value=''>Please Select</option>";
+    if (rows && rows.length) rows.forEach((r) => { option += opt(r.id, r.name); });
+    else option += "<option value='-1'>Others</option>";
+    res.json({ option });
+  } catch (err) { next(err); }
+};
+
+exports.getStateCitySchool = async (req, res, next) => {
+  try {
+    const rows = await M.getStateCitySchool(req.body.value);
+    res.json({ option: optionsFrom(rows, 'id', 'name') });
+  } catch (err) { next(err); }
+};
+
+exports.getAcedemic = async (req, res, next) => {
+  try {
+    const { value } = req.body;
+    if (value && Number(value) !== 0) req.session.ac_year = value; // mirror getSchoolForUni session side-effect
+    const rows = await M.getSchoolForUni(value, req.session.agent || null);
+    res.json({ option: optionsFrom(rows, 'school_id', 'school_full_name') });
+  } catch (err) { next(err); }
+};
+
+exports.getAcedemic2 = async (req, res, next) => {
+  try {
+    const rows = await M.getSpecialisationsForUni2(req.body.certification, req.body.school);
+    res.json({ option: optionsFrom(rows, 'specialisation_id', 'specialisation_name') });
+  } catch (err) { next(err); }
+};
+
+exports.getAbbrivation = async (req, res, next) => {
+  try {
+    const value = req.body.value;     // certification id
+    const school = req.body.school;
+    const acYear = req.session.ac_year || 0;
+    const rows = await M.getAbrivationForUni(value, school, acYear, req.session.agent || null);
+
+    let option = "<option value=''>Please Select</option>";
+    (rows || []).forEach((r) => {
+      let label = r.abbrivation;
+      if (label === 'BBA' && String(school) === '8') label = 'BBA / BBA (Hons)';
+      if (label === 'B.Sc (Hons)' && String(school) === '8') label = 'B.Sc / B.Sc (Hons)';
+      option += opt(r.id, label);
+    });
+    if (String(school) === '8' && String(value) === '1') {
+      option += opt('396', 'BBA International Accounting & Finance');
+    }
+    res.json({ option });
+  } catch (err) { next(err); }
+};
+
+exports.getAbbrivation1 = async (req, res, next) => {
+  try {
+    const { value, school } = req.body;
+    const rows = await M.getAbrivationForUni(value, school, req.session.ac_year || 0, req.session.agent || null);
+    let option = optionsFrom(rows, 'id', 'abbrivation');
+
+    const appData = req.session.applicantData;
+    if (appData) {
+      const schoool = Number(appData.appln_school);
+      const applnId = Number(appData.appln_id);
+      const spec = Number(appData.appln_specialisation);
+      if (schoool === 1) {
+        option = "<option value=''>Please Select</option>";
+        if (applnId >= 800000 && applnId < 900000) option += opt('2', 'B.Voc');
+        if (applnId >= 900000 && applnId < 1000000) option += opt('1', 'B.Des');
+      }
+      if (schoool === 2 && (spec === 33 || spec === 34)) {
+        option = "<option value=''>Please Select</option>";
+        if (applnId >= 900000 && applnId <= 1000000) option += opt('5', 'MBA');
+      }
+      if (schoool === 6) {
+        option = "<option value=''>Please Select</option>";
+        if (spec === 30) option += opt('6', 'B.A (Hons.)');
+        if (spec === 29) option += opt('2', 'B.Voc');
+      }
+    }
+    res.json({ option });
+  } catch (err) { next(err); }
+};
+
+exports.getSpecialisation = async (req, res, next) => {
+  try {
+    const { value, school, certification } = req.body; // value = abbrivation
+    const rows = await M.getSpecialisationsForUni(value, certification, school);
+    res.json({ option: optionsFrom(rows, 'specialisation_id', 'specialisation_name') });
+  } catch (err) { next(err); }
+};
+
+exports.getCerticiate = async (req, res, next) => {
+  try {
+    const { value } = req.body; // value = school id
+    const rows = await M.getCerticiateForUni(value, req.session.agent || null);
+    res.json({ option: optionsFrom(rows, 'certification_id', 'certification_name') });
+  } catch (err) { next(err); }
+};
+
+exports.getSchoolList = async (req, res, next) => {
+  try {
+    const rows = await M.getSchoolListForUni(req.body.value, req.session.agent || null);
+    res.json({ option: optionsFrom(rows, 'school_id', 'school_name') });
+  } catch (err) { next(err); }
+};
+
+// ====================== AJAX: uploads ======================
+// (multer runs in the route; here we just stash the saved filename in the session.)
+function makeUploadHandler(sessionKey) {
+  return (req, res) => {
+    if (req.file) {
+      req.session[sessionKey] = req.file.filename;
+      return res.json({ status: 1, file_name: req.file.filename, [sessionKey]: req.file.filename });
+    }
+    res.json({ status: 0, error: 'The file you are attempting to upload could not be saved.' });
   };
-
-  // Section 1
-  req('school', 'School');
-  req('program', 'Programme');
-  req('degree', 'Degree');
-  req('specialisation', 'Specialisation');
-  req('source', 'Source');
-  if (!files.profile_image) e.profile_image = 'Profile photo is required.';
-
-  // Section 2
-  req('first_name', 'First name');
-  req('last_name', 'Last name');
-  req('address', 'Address');
-  req('country', 'Country');
-  req('state', 'State');
-  req('city', 'City');
-  req('pin_code', 'Pin code');
-  req('mobile', 'Mobile number');
-  req('email', 'Email');
-  req('birth_date', 'Date of birth');
-  req('gender', 'Gender');
-  req('blood_group', 'Blood group');
-  req('instagram', 'Instagram');
-  req('caste_category', 'Caste category');
-
-  if (b.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.email)) e.email = 'Enter a valid email address.';
-  if (b.mobile && !/^\d{10}$/.test(b.mobile)) e.mobile = 'Enter a valid 10-digit mobile number.';
-  if (b.pin_code && !/^\d{6}$/.test(b.pin_code)) e.pin_code = 'Enter a valid 6-digit pin code.';
-
-  // Section 3 — Class X
-  req('class_x_school', 'Class X school name');
-  req('class_x_board', 'Class X examination board');
-  req('class_x_year', 'Class X year of completion');
-  if (!files.class_x_marksheet) e.class_x_marksheet = 'Class X marksheet is required.';
-
-  // Section 3 — Class XII
-  req('class_xii_state', 'Class XII state');
-  req('class_xii_city', 'Class XII city');
-  req('class_xii_school', 'Class XII school / college');
-  req('class_xii_stream', 'Class XII academic stream');
-  req('class_xii_board', 'Class XII examination board');
-  req('class_xii_year', 'Class XII year of completion');
-  // Class XII marksheet is optional ("if already passed").
-
-  // Section 4 — Parents
-  req('father_name', "Father's name");
-  req('father_mobile', "Father's mobile number");
-  req('father_email', "Father's email");
-  req('father_occupation', "Father's occupation");
-  req('father_organization', "Father's organization");
-  req('mother_name', "Mother's name");
-  req('mother_mobile', "Mother's mobile number");
-  req('mother_email', "Mother's email");
-  req('mother_occupation', "Mother's occupation");
-  req('mother_organization', "Mother's organization");
-  req('sop', 'Statement of purpose');
-
-  if (b.father_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.father_email)) e.father_email = 'Enter a valid email.';
-  if (b.mother_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(b.mother_email)) e.mother_email = 'Enter a valid email.';
-  if (b.sop && b.sop.trim().split(/\s+/).length > 250) e.sop = 'Statement of purpose must be 250 words or fewer.';
-
-  // Section 5 — Declaration
-  if (!b.undertaking) e.undertaking = 'You must accept the undertaking to submit.';
-
-  return e;
 }
+exports.uploadFile = makeUploadHandler('userfile');
+exports.uploadFile1 = makeUploadHandler('tenmarksheet');
+exports.uploadFile2 = makeUploadHandler('xiimarksheet');
+exports.uploadFile3 = makeUploadHandler('special_assistance_doc');
+exports.uploadFile4 = makeUploadHandler('gap_year_certificate');
+exports.uploadURLCerticate = makeUploadHandler('isdi_summer_certifate');
+
+// ====================== SUBMISSION ======================
+exports.doAdmission = async (req, res, next) => {
+  try {
+    const b = req.body;
+    const session = req.session;
+
+    // 1) Validation (CI form_validation parity).
+    const errors = await validateAdmission(b, session);
+    if (Object.keys(errors).length > 0) {
+      return res.json({ status: 0, error: errors });
+    }
+
+    // 2) reCAPTCHA (bypassed by default to match the original).
+    const ok = await recaptcha.verify(b.captcha);
+    if (!ok) return res.json({ status: 0, error: { captcha: 'Please verify the captcha.' } });
+
+    // 3) Build insertData by reflecting isdi_admsn_appln columns (strip appln_ prefix).
+    const diceCols = await M.listFields(M.pools.diceapp, 'isdi_admsn_appln');
+    const insertData = {};
+    for (const col of diceCols) {
+      const bodyField = col.replace(/^appln_/, '');
+      const v = b[bodyField];
+      if (v !== undefined && v !== null && String(v) !== '') insertData[col] = v;
+    }
+
+    // school / certification / degree special cases.
+    const appln_school = insertData.appln_school;
+    const appln_certification = insertData.appln_certification;
+    const degree = insertData.appln_abbrivation;
+    if (String(appln_school) === '8' && String(appln_certification) === '1' && String(degree) === '4') {
+      insertData.appln_specialisation = 101; insertData.appln_abbrivation = 4;
+    }
+    if (String(appln_school) === '8' && String(appln_certification) === '1' && String(degree) === '396') {
+      insertData.appln_specialisation = 396; insertData.appln_abbrivation = 4;
+    }
+
+    insertData.appln_DateTime = new Date();
+
+    // 4) Insert into the default (per-year) table, filtered to that table's columns.
+    const defaultCols = await M.listFields(M.pools.defaultDb, 'isdi_admsn_appln');
+    const insertData1 = {};
+    for (const k of Object.keys(insertData)) if (defaultCols.includes(k)) insertData1[k] = insertData[k];
+
+    // agent referral.
+    const agent = session.agent;
+    if (agent) {
+      insertData1.appln_refName = agent.name; insertData1.appln_refEmail = agent.email; insertData1.appln_refPhone = agent.phone;
+      insertData.appln_refName = agent.name; insertData.appln_refEmail = agent.email; insertData.appln_refPhone = agent.phone;
+    }
+    session.agent = undefined;
+
+    insertData1.appln_userfile = session.userfile;
+
+    const academicYear = insertData.appln_academicYear;
+    let perYearTable = null;
+    if (String(academicYear) === '10') perYearTable = 'isdi_admsn_appln_uni';
+    else if (String(academicYear) === '11') perYearTable = 'isdi_admsn_appln_ay_11';
+
+    let applnID;
+    if (perYearTable) applnID = await M.insert(M.pools.defaultDb, perYearTable, insertData1);
+
+    // 5) Insert master row into diceapp with the same appln_id.
+    insertData.appln_masterID = applnID;
+    insertData.appln_id = applnID;
+    insertData.appln_firstName = ucwords(insertData.appln_firstName);
+    insertData.appln_lastName = ucwords(insertData.appln_lastName);
+
+    if (session.isdi_summer_certifate) {
+      insertData.appln_summer_doc = 'summer_v1.' + extOf(session.isdi_summer_certifate);
+    }
+    await M.insert(M.pools.diceapp, 'isdi_admsn_appln', insertData);
+
+    // 6) Document rows + S3 uploads.
+    const docDir = UPLOAD_DIR;
+    async function saveDoc(docId, baseName, sessionKey) {
+      const stored = session[sessionKey];
+      if (!stored) return;
+      const fileName = `${baseName}.${extOf(stored)}`;
+      await M.insert(M.pools.diceapp, 'isdi_admsn_documents_uploads', {
+        doc_upload_appln_id: applnID, doc_upload_doc_id: docId, doc_upload_file_name: fileName,
+        doc_upload_version: 1, doc_upload_datetime: new Date(),
+      });
+      await s3.uploadToAmazonS3(applnID, fileName, `${docDir}/${stored}`);
+    }
+    await saveDoc(1, 'photo_v1', 'userfile');
+    if (String(insertData.appln_certification) === '1' || session.tenmarksheet) await saveDoc(2, 'marklist_10', 'tenmarksheet');
+    if (session.xiimarksheet) await saveDoc(3, 'marklist_12', 'xiimarksheet');
+    if (session.special_assistance_doc) await saveDoc(110, 'special_assistance_doc', 'special_assistance_doc');
+    if (session.gap_year_certificate) await saveDoc(55, 'gap_certificate', 'gap_year_certificate');
+    if (session.isdi_summer_certifate) {
+      await s3.uploadToAmazonS3(applnID, 'summer_v1.' + extOf(session.isdi_summer_certifate), `${docDir}/${session.isdi_summer_certifate}`);
+    }
+
+    // 7) SMS + email + status.
+    await sms.sendSMSToApplication(applnID);
+    await mailer.sendApplicationEmail(applnID);
+
+    session.userfile = undefined;
+    session.applnID = applnID;
+
+    await M.setStatus(applnID, 1);
+
+    res.json({ status: 1, applnID });
+  } catch (err) { next(err); }
+};
+
+// Secondary submit variants in the original JS. The ATLAS form submits via
+// doAdmission2 -> doAdmission; these mirrors keep the other buttons working.
+exports.doAdmissionTesting = exports.doAdmission;
+exports.doAdmissionAcm = exports.doAdmission;
+exports.doAdmission3 = exports.doAdmission;
+
+// Footer enquiry form (submitFooter -> formSubmit). The client ignores the body
+// and redirects to the thank-you page; we send the enquiry email best-effort.
+exports.formSubmit = async (req, res) => {
+  try {
+    const b = req.body;
+    if (mailer.sendEnquiry) await mailer.sendEnquiry(b);
+  } catch (err) { console.error('[formSubmit]', err.message); }
+  res.json({ status: 1 });
+};
