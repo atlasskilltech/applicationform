@@ -1,0 +1,376 @@
+<%
+  // --- tiny helpers reused through the form ---
+  function val(k){ return (old && old[k] != null) ? old[k] : ''; }
+  function err(k){ return errors && errors[k] ? `<p class="field-error">${errors[k]}</p>` : ''; }
+  function hasErr(k){ return errors && errors[k] ? 'is-invalid' : ''; }
+  function options(list, selected){
+    return ['<option value="">Please select</option>']
+      .concat(list.map(o => `<option value="${o}" ${String(selected)===String(o)?'selected':''}>${o}</option>`))
+      .join('');
+  }
+%>
+
+<form id="applicationForm" class="app-form" action="/submit" method="POST" enctype="multipart/form-data" novalidate>
+  <div class="app-layout">
+
+    <!-- Sidebar progress -->
+    <aside class="app-sidebar">
+      <div class="sidebar-card">
+        <p class="sidebar-label">ON THIS PAGE</p>
+        <h3>Application</h3>
+        <ol class="step-nav" id="stepNav">
+          <li data-step="1" class="active">Program &amp; Profile</li>
+          <li data-step="2">Student Details</li>
+          <li data-step="3">Education Details</li>
+          <li data-step="4">Parent Details</li>
+          <li data-step="5">Declaration &amp; Submit</li>
+        </ol>
+      </div>
+      <div class="sidebar-card handy">
+        <h4>Documents you'll need</h4>
+        <ul>
+          <li>Passport-style photo &middot; max 5 MB</li>
+          <li>Class X marksheet</li>
+          <li>Class XII marksheet, if passed</li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Form body -->
+    <div class="app-body">
+
+      <!-- ============ SECTION 1 ============ -->
+      <section class="form-section active" data-step="1">
+        <header class="section-head">
+          <span class="section-no">01</span>
+          <div><h2>Program &amp; Profile</h2><p>Choose the school, programme and degree you are applying to</p></div>
+        </header>
+
+        <div class="grid-3">
+          <div class="field">
+            <label>School <span class="req">*</span></label>
+            <select name="school" class="<%= hasErr('school') %>"><%- options(data.schools, val('school')) %></select>
+            <%- err('school') %>
+          </div>
+          <div class="field">
+            <label>Programs <span class="req">*</span></label>
+            <select name="program" class="<%= hasErr('program') %>"><%- options(data.programs, val('program')) %></select>
+            <%- err('program') %>
+          </div>
+          <div class="field">
+            <label>Degree <span class="req">*</span></label>
+            <select name="degree" class="<%= hasErr('degree') %>"><%- options(data.degrees, val('degree')) %></select>
+            <%- err('degree') %>
+          </div>
+          <div class="field">
+            <label>Specialisation <span class="req">*</span></label>
+            <select name="specialisation" class="<%= hasErr('specialisation') %>"><%- options(data.specialisations, val('specialisation')) %></select>
+            <%- err('specialisation') %>
+          </div>
+          <div class="field">
+            <label>How Did You Hear About Us? <span class="req">*</span></label>
+            <select name="source" class="<%= hasErr('source') %>"><%- options(data.sources, val('source')) %></select>
+            <%- err('source') %>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Profile Image <span class="req">*</span></label>
+          <input type="file" name="profile_image" accept=".jpg,.jpeg,.png" class="<%= hasErr('profile_image') %>" />
+          <small>A professional, plain-background photo. JPG, JPEG or PNG &middot; max 5 MB.</small>
+          <%- err('profile_image') %>
+        </div>
+      </section>
+
+      <!-- ============ SECTION 2 ============ -->
+      <section class="form-section" data-step="2">
+        <header class="section-head">
+          <span class="section-no">02</span>
+          <div><h2>Student Details</h2><p>Your name, address and contact information</p></div>
+        </header>
+
+        <div class="grid-3">
+          <div class="field">
+            <label>First Name <span class="req">*</span></label>
+            <input type="text" name="first_name" value="<%= val('first_name') %>" class="<%= hasErr('first_name') %>" />
+            <%- err('first_name') %>
+          </div>
+          <div class="field">
+            <label>Middle Name</label>
+            <input type="text" name="middle_name" value="<%= val('middle_name') %>" />
+          </div>
+          <div class="field">
+            <label>Last Name <span class="req">*</span></label>
+            <input type="text" name="last_name" value="<%= val('last_name') %>" class="<%= hasErr('last_name') %>" />
+            <%- err('last_name') %>
+          </div>
+        </div>
+
+        <h4 class="sub-head">Mailing Address</h4>
+        <div class="field">
+          <label>Address <span class="req">*</span></label>
+          <textarea name="address" rows="3" placeholder="House / flat no., street, locality, landmark" class="<%= hasErr('address') %>"><%= val('address') %></textarea>
+          <%- err('address') %>
+        </div>
+        <div class="grid-3">
+          <div class="field">
+            <label>Country <span class="req">*</span></label>
+            <select name="country" class="<%= hasErr('country') %>"><%- options(data.countries, val('country')) %></select>
+            <%- err('country') %>
+          </div>
+          <div class="field">
+            <label>State <span class="req">*</span></label>
+            <select name="state" class="<%= hasErr('state') %>"><%- options(data.states, val('state')) %></select>
+            <%- err('state') %>
+          </div>
+          <div class="field">
+            <label>City <span class="req">*</span></label>
+            <select name="city" class="<%= hasErr('city') %>"><%- options(data.cities, val('city')) %></select>
+            <%- err('city') %>
+          </div>
+          <div class="field">
+            <label>Pin Code <span class="req">*</span></label>
+            <input type="text" name="pin_code" value="<%= val('pin_code') %>" placeholder="400070" class="<%= hasErr('pin_code') %>" />
+            <%- err('pin_code') %>
+          </div>
+          <div class="field">
+            <label>Mobile No. <span class="req">*</span></label>
+            <input type="text" name="mobile" value="<%= val('mobile') %>" placeholder="10-digit mobile number" class="<%= hasErr('mobile') %>" />
+            <%- err('mobile') %>
+          </div>
+          <div class="field">
+            <label>Email Id <span class="req">*</span></label>
+            <input type="email" name="email" value="<%= val('email') %>" placeholder="you@example.com" class="<%= hasErr('email') %>" />
+            <%- err('email') %>
+          </div>
+        </div>
+
+        <h4 class="sub-head">About You</h4>
+        <div class="grid-3">
+          <div class="field">
+            <label>Birth-Date <span class="req">*</span></label>
+            <input type="date" name="birth_date" value="<%= val('birth_date') %>" class="<%= hasErr('birth_date') %>" />
+            <%- err('birth_date') %>
+          </div>
+          <div class="field">
+            <label>Gender <span class="req">*</span></label>
+            <select name="gender" class="<%= hasErr('gender') %>"><%- options(data.genders, val('gender')) %></select>
+            <%- err('gender') %>
+          </div>
+          <div class="field">
+            <label>Blood Group <span class="req">*</span></label>
+            <select name="blood_group" class="<%= hasErr('blood_group') %>"><%- options(data.bloodGroups, val('blood_group')) %></select>
+            <%- err('blood_group') %>
+          </div>
+          <div class="field">
+            <label>Nationality</label>
+            <input type="text" name="nationality" value="<%= val('nationality') %>" placeholder="Enter your nationality" />
+          </div>
+          <div class="field">
+            <label>Instagram <span class="req">*</span></label>
+            <input type="text" name="instagram" value="<%= val('instagram') %>" placeholder="@username or profile link" class="<%= hasErr('instagram') %>" />
+            <%- err('instagram') %>
+          </div>
+          <div class="field">
+            <label>Linkedin</label>
+            <input type="text" name="linkedin" value="<%= val('linkedin') %>" placeholder="Profile link" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Caste Category <span class="req">*</span></label>
+          <div class="radio-row <%= hasErr('caste_category') %>">
+            <% data.casteCategories.forEach(function(c){ %>
+              <label class="radio-pill">
+                <input type="radio" name="caste_category" value="<%= c %>" <%= String(val('caste_category'))===String(c)?'checked':'' %> />
+                <span><%= c %></span>
+              </label>
+            <% }); %>
+          </div>
+          <%- err('caste_category') %>
+        </div>
+      </section>
+
+      <!-- ============ SECTION 3 ============ -->
+      <section class="form-section" data-step="3">
+        <header class="section-head">
+          <span class="section-no">03</span>
+          <div><h2>Education Details</h2><p>Class X, Class XII and graduation records</p></div>
+        </header>
+
+        <h4 class="sub-head">Class X &middot; Secondary School</h4>
+        <div class="grid-3">
+          <div class="field">
+            <label>School Name <span class="req">*</span></label>
+            <input type="text" name="class_x_school" value="<%= val('class_x_school') %>" placeholder="Class X school name" class="<%= hasErr('class_x_school') %>" />
+            <%- err('class_x_school') %>
+          </div>
+          <div class="field">
+            <label>Examination Board <span class="req">*</span></label>
+            <select name="class_x_board" class="<%= hasErr('class_x_board') %>"><%- options(data.boards, val('class_x_board')) %></select>
+            <%- err('class_x_board') %>
+          </div>
+          <div class="field">
+            <label>Year Of Completion <span class="req">*</span></label>
+            <select name="class_x_year" class="<%= hasErr('class_x_year') %>"><%- options(data.years, val('class_x_year')) %></select>
+            <%- err('class_x_year') %>
+          </div>
+        </div>
+        <div class="field">
+          <label>Class X Marksheet <span class="req">*</span></label>
+          <input type="file" name="class_x_marksheet" accept=".pdf,.jpg,.jpeg,.png" class="<%= hasErr('class_x_marksheet') %>" />
+          <small>Self-attested copy &middot; PDF, JPG, JPEG or PNG &middot; max 5 MB.</small>
+          <%- err('class_x_marksheet') %>
+        </div>
+
+        <h4 class="sub-head">Class XII &middot; Higher Secondary</h4>
+        <div class="grid-3">
+          <div class="field">
+            <label>State <span class="req">*</span></label>
+            <select name="class_xii_state" class="<%= hasErr('class_xii_state') %>"><%- options(data.states, val('class_xii_state')) %></select>
+            <%- err('class_xii_state') %>
+          </div>
+          <div class="field">
+            <label>City <span class="req">*</span></label>
+            <select name="class_xii_city" class="<%= hasErr('class_xii_city') %>"><%- options(data.cities, val('class_xii_city')) %></select>
+            <%- err('class_xii_city') %>
+          </div>
+          <div class="field">
+            <label>School / Junior College <span class="req">*</span></label>
+            <input type="text" name="class_xii_school" value="<%= val('class_xii_school') %>" placeholder="School / Junior College" class="<%= hasErr('class_xii_school') %>" />
+            <%- err('class_xii_school') %>
+          </div>
+          <div class="field">
+            <label>Academic Stream <span class="req">*</span></label>
+            <select name="class_xii_stream" class="<%= hasErr('class_xii_stream') %>"><%- options(data.academicStreams, val('class_xii_stream')) %></select>
+            <%- err('class_xii_stream') %>
+          </div>
+          <div class="field">
+            <label>Examination Board <span class="req">*</span></label>
+            <select name="class_xii_board" class="<%= hasErr('class_xii_board') %>"><%- options(data.boards, val('class_xii_board')) %></select>
+            <%- err('class_xii_board') %>
+          </div>
+          <div class="field">
+            <label>Year Of Completion <span class="req">*</span></label>
+            <select name="class_xii_year" class="<%= hasErr('class_xii_year') %>"><%- options(data.years, val('class_xii_year')) %></select>
+            <%- err('class_xii_year') %>
+          </div>
+        </div>
+        <div class="field">
+          <label>Class XII Marksheet <small>(if already passed)</small></label>
+          <input type="file" name="class_xii_marksheet" accept=".pdf,.jpg,.jpeg,.png" />
+          <small>Self-attested copy &middot; PDF, JPG, JPEG or PNG &middot; max 5 MB.</small>
+        </div>
+      </section>
+
+      <!-- ============ SECTION 4 ============ -->
+      <section class="form-section" data-step="4">
+        <header class="section-head">
+          <span class="section-no">04</span>
+          <div><h2>Parent Details</h2><p>Father, mother or guardian — plus your statement of purpose</p></div>
+        </header>
+
+        <h4 class="sub-head">Father's Details</h4>
+        <div class="grid-3">
+          <div class="field">
+            <label>Father's Name <span class="req">*</span></label>
+            <input type="text" name="father_name" value="<%= val('father_name') %>" class="<%= hasErr('father_name') %>" />
+            <%- err('father_name') %>
+          </div>
+          <div class="field">
+            <label>Father's Mobile Number <span class="req">*</span></label>
+            <input type="text" name="father_mobile" value="<%= val('father_mobile') %>" placeholder="10-digit mobile number" class="<%= hasErr('father_mobile') %>" />
+            <%- err('father_mobile') %>
+          </div>
+          <div class="field">
+            <label>Father's Email Address <span class="req">*</span></label>
+            <input type="email" name="father_email" value="<%= val('father_email') %>" placeholder="name@example.com" class="<%= hasErr('father_email') %>" />
+            <%- err('father_email') %>
+          </div>
+          <div class="field">
+            <label>Father's Occupation <span class="req">*</span></label>
+            <input type="text" name="father_occupation" value="<%= val('father_occupation') %>" class="<%= hasErr('father_occupation') %>" />
+            <%- err('father_occupation') %>
+          </div>
+          <div class="field">
+            <label>Father's Organization Name <span class="req">*</span></label>
+            <input type="text" name="father_organization" value="<%= val('father_organization') %>" class="<%= hasErr('father_organization') %>" />
+            <%- err('father_organization') %>
+          </div>
+        </div>
+
+        <h4 class="sub-head">Mother's Details</h4>
+        <div class="grid-3">
+          <div class="field">
+            <label>Mother's Name <span class="req">*</span></label>
+            <input type="text" name="mother_name" value="<%= val('mother_name') %>" class="<%= hasErr('mother_name') %>" />
+            <%- err('mother_name') %>
+          </div>
+          <div class="field">
+            <label>Mother's Mobile Number <span class="req">*</span></label>
+            <input type="text" name="mother_mobile" value="<%= val('mother_mobile') %>" placeholder="10-digit mobile number" class="<%= hasErr('mother_mobile') %>" />
+            <%- err('mother_mobile') %>
+          </div>
+          <div class="field">
+            <label>Mother's Email Address <span class="req">*</span></label>
+            <input type="email" name="mother_email" value="<%= val('mother_email') %>" placeholder="name@example.com" class="<%= hasErr('mother_email') %>" />
+            <%- err('mother_email') %>
+          </div>
+          <div class="field">
+            <label>Mother's Occupation <span class="req">*</span></label>
+            <input type="text" name="mother_occupation" value="<%= val('mother_occupation') %>" class="<%= hasErr('mother_occupation') %>" />
+            <%- err('mother_occupation') %>
+          </div>
+          <div class="field">
+            <label>Mother's Organization Name <span class="req">*</span></label>
+            <input type="text" name="mother_organization" value="<%= val('mother_organization') %>" class="<%= hasErr('mother_organization') %>" />
+            <%- err('mother_organization') %>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>In Case Of Guardian, Please Specify The Relationship</label>
+          <input type="text" name="guardian_relationship" value="<%= val('guardian_relationship') %>" placeholder="e.g. Uncle, elder brother" />
+        </div>
+
+        <h4 class="sub-head">Statement of Purpose</h4>
+        <div class="field">
+          <label>Highlight your achievements, why you'd like to apply, and any noteworthy details. <span class="req">*</span></label>
+          <textarea name="sop" rows="6" maxlength="2000" placeholder="Write up to 250 words..." class="<%= hasErr('sop') %>" id="sop"><%= val('sop') %></textarea>
+          <small><span id="sopCount">0</span> / 250 words &middot; Be honest, specific and concise.</small>
+          <%- err('sop') %>
+        </div>
+      </section>
+
+      <!-- ============ SECTION 5 ============ -->
+      <section class="form-section" data-step="5">
+        <header class="section-head">
+          <span class="section-no">05</span>
+          <div><h2>Declaration &amp; Submit</h2><p>Confirm your details are accurate, then send your application</p></div>
+        </header>
+
+        <div class="notice">Please review every section before you submit — no alterations are permitted once the application has been sent.</div>
+
+        <label class="check-row">
+          <input type="checkbox" name="declaration" value="1" checked />
+          <span>I certify that the information submitted in support of this application is true to the best of my knowledge and belief. I understand that in the event of any information being found false or incorrect, my admission is liable to be rejected / cancelled at any stage of the program.</span>
+        </label>
+
+        <label class="check-row">
+          <input type="checkbox" name="undertaking" value="1" />
+          <span>I hereby declare that the above information provided is complete and correct to the best of my knowledge. By clicking, I accept the Terms &amp; Conditions and Privacy Policy. <span class="req">*</span></span>
+        </label>
+        <%- err('undertaking') %>
+      </section>
+
+      <!-- Nav buttons -->
+      <div class="form-nav">
+        <button type="button" class="btn btn-ghost" id="prevBtn" style="display:none;">&larr; Back</button>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-primary" id="nextBtn">Next &rarr;</button>
+        <button type="submit" class="btn btn-submit" id="submitBtn" style="display:none;">Submit application</button>
+      </div>
+
+    </div>
+  </div>
+</form>
