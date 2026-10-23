@@ -870,11 +870,16 @@ function getStateCityPGDSE(value,type)
 		}
 	});
 }
-function getStateCityV2(value,type,id='')
+function getStateCityV2(value,type,id='',resetId='')
 {
 	console.log(value);
 	console.log(type);
 	console.log(id);
+	// Reset the dependent (grandchild) dropdown so stale options from the
+	// previous selection don't linger (e.g. old city when country changes).
+	if(resetId){
+		$("#"+resetId).html('<option selected disabled value="">Please select</option>');
+	}
 	$.ajax
 	({
 		type:"POST",
