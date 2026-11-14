@@ -11,6 +11,10 @@ const trackerRoutes = require('./routes/tracker');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isProd = process.env.NODE_ENV === 'production';
+
+// Trust the first proxy (TLS terminated upstream) so secure cookies work in prod.
+if (isProd) app.set('trust proxy', 1);
 
 // ---- View engine (EJS + layouts) ----
 app.set('view engine', 'ejs');
@@ -27,7 +31,12 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'atlas-application-form-dev-secret',
   resave: false,
   saveUninitialized: true,
-  cookie: { httpOnly: true, maxAge: 1000 * 60 * 60 * 4 },
+  cookie: {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: isProd, // require HTTPS for the session cookie in production
+    maxAge: 1000 * 60 * 60 * 4,
+  },
 }));
 
 // ---- Static assets ----

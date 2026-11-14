@@ -1,71 +1,102 @@
-# ATLAS SkillTech University — Application Form
+# ATLAS SkillTech University — Admission Application Form
 
-A **Node.js + Express + EJS + MySQL** port of the original CodeIgniter
-`isme/application-form-atlas` admission form. The rendered page, field names and
-client behaviour match the original exactly; the PHP controller/model were ported to
-Express so the app runs standalone against the same existing MySQL databases.
+A web application that renders the university admission form, validates and
+processes submissions, handles document uploads, and sends applicants a
+confirmation. Built with **Node.js + Express**, **EJS** views and a **MySQL**
+backend.
 
-## Stack
-- **Node.js + Express** — server & routing
-- **EJS** — the form is a standalone page (`views/application-form.ejs`, rendered with `layout:false`)
-- **MySQL** via `mysql2` — **two** pools (`diceapp`, `defaultDb`) mirroring the old CI DB groups
-- **multer** — AJAX file uploads (stored under `uploads/`, filenames kept in the session)
-- **@aws-sdk/client-s3**, **nodemailer** (SendGrid), **axios** (MSG91 SMS, reCAPTCHA, ERP mailer), **puppeteer-core** (PDF)
+## Features
 
-## Quick start
+- Server-rendered admission form with cascading, dependent select fields
+- Server-side form validation
+- Secure document uploads with type/size limits
+- Application submission with confirmation email and generated PDF
+- Optional SMS and reCAPTCHA integrations
+
+## Tech stack
+
+| Layer        | Technology            |
+| ------------ | --------------------- |
+| Runtime      | Node.js + Express     |
+| Views        | EJS                   |
+| Database     | MySQL (via `mysql2`)  |
+| File uploads | `multer`              |
+| Email        | `nodemailer` (SMTP)   |
+| PDF          | `puppeteer-core`      |
+| Object store | S3-compatible storage |
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 18+
+- A reachable MySQL instance
+- Credentials for the external services you intend to enable (email, SMS,
+  object storage, reCAPTCHA)
+
+### Install & run
+
 ```bash
 npm install
-cp .env.example .env      # then fill it in (see below)
-npm run dev               # or: npm start
-# open http://localhost:3000
+cp .env.example .env     # fill in your own values — see .env.example
+npm run dev              # development (auto-reload)
+# or
+npm start                # production
 ```
 
-## Configuration (`.env`)
-- **Two databases** — point `DICEAPP_DB_*` (primary admissions DB: schools,
-  certifications, specialisations, countries/states/cities, agents, academic years,
-  the master `isdi_admsn_appln` + documents) and `DEFAULT_DB_*` (the per-year
-  `isdi_admsn_appln_uni` / `isdi_admsn_appln_ay_11` table) at your existing databases.
-- **Assets** — `BASE_ASSET_URL` is the base for the logos, hero images, jQuery and
-  `script.js` the view pulls in; the production URL renders the page identically.
-- **Services** — `AWS_*`/`S3_BUCKET`, `SENDGRID_API_KEY` (+ optional `ERP_MAIL_URL`/
-  `ERP_MAIL_COOKIE`), `MSG91_AUTHKEY`/`MSG91_FLOW_ID`, `RECAPTCHA_SECRET`
-  (`RECAPTCHA_STRICT=1` to enforce — off by default to match the original).
-- `SESSION_SECRET`, `CHROMIUM_PATH` (for the PDF step).
+The app listens on the port defined by `PORT` (default `3000`).
 
-> **Security:** the original PHP had live AWS / SendGrid / MSG91 / reCAPTCHA keys
-> hard-coded. They were **not** copied here — put your own in `.env` and **rotate the
-> exposed ones**.
+## Configuration
+
+All configuration is supplied through environment variables and is **never**
+committed to the repository. Copy `.env.example` to `.env` and fill in values
+for your environment. `.env` is git-ignored.
+
+Configuration groups (see `.env.example` for the full list of keys):
+
+- **Server** — port, environment, session secret
+- **Database** — MySQL connection settings
+- **Uploads** — upload directory and limits
+- **Object storage** — S3-compatible credentials and bucket
+- **Email** — SMTP host and credentials
+- **SMS** — provider credentials (optional)
+- **reCAPTCHA** — site/secret keys (optional)
+
+> Provide credentials only through environment variables or your platform's
+> secret manager. Do not hardcode secrets in source, and do not paste them
+> into issues, pull requests, or logs.
 
 ## Project layout
+
 ```
-server.js                         # app entry: sessions, static, routes
-config/
-  db.js                           # two mysql2 pools (diceapp + defaultDb)
-  upload.js                       # per-endpoint multer handlers
-controllers/
-  applicationController.js        # index + AJAX cascades + uploads + doAdmission
-  validation.js                   # CI form_validation + callbacks, ported
-models/applicationModel.js        # M_applications getters, status, insert helpers
-services/                         # s3, sms, mailer, pdf, recaptcha
-routes/application.js             # routes matching the client JS URLs
-views/
-  application-form.ejs            # the form (ported 1:1 from application-form-atlas.php)
-  success.ejs  error.ejs
-  mailer/application_email.ejs    # confirmation email body
-  pdf/application_details_ug_isme_atlas_view.ejs  # PDF rendered & emailed
-public/js/application-form.js     # ported client JS (endpoint URLs repointed to this app)
+server.js            # application entry point
+config/              # database pool & upload configuration
+controllers/         # request handlers and validation
+models/              # data-access layer
+routes/              # route definitions
+services/            # external integrations (storage, mail, PDF, SMS, reCAPTCHA)
+views/               # EJS templates (form, emails, PDF, partials)
+public/              # static assets (CSS, client JS)
+scripts/             # maintenance scripts
+sql/                 # schema reference
 ```
 
-## Routes (match the client JS)
-- `GET /` and `GET /:agent` — the form (agent code captured into the session)
-- `POST /isme/applications/getCerticiate | getAbbrivation | getSpecialisation | getStateCity | getSchoolList | getAcedemic | getAcedemic2` — cascading-select option JSON
-- `POST /applications/getStateCitySchool` — 12th-school lookup
-- `POST /isme/applications/uploadFile | uploadFile1..4 | uploadURLCerticate` — file uploads
-- `POST /isme/applications/doAdmission` — submission (validation → reCAPTCHA → dual-DB
-  insert → document rows + S3 → SMS → email+PDF → status), then the client redirects to `/Payments`
-- `GET /Payments` — confirmation landing
+## Security
 
-## Notes
-- No database is bundled; the app connects to your existing schema and does not create tables.
-- reCAPTCHA is bypassed by default (as the original forced `success = 1`); set `RECAPTCHA_STRICT=1` to enforce.
-- `doAdmissionTesting` / `doAdmissionAcm` / `doAdmission3` mirror `doAdmission`; the ATLAS form submits via `doAdmission`.
+Security is a first-class concern for this project. Please observe the
+following:
+
+- **Secrets** live only in environment variables / a secret manager — never in
+  source control. If a credential is ever exposed, **rotate it immediately**.
+- **Dependencies** should be kept current; run `npm audit` regularly.
+- **Transport** — always serve the application over HTTPS in production so that
+  session cookies and form data are encrypted in transit.
+- **Uploads** are validated by type and size and stored outside the web root.
+- **reCAPTCHA** should be enabled in production to protect the public form from
+  automated abuse.
+- To report a vulnerability, see [`SECURITY.md`](./SECURITY.md). Please do not
+  open a public issue for security reports.
+
+## License
+
+Proprietary — © ATLAS SkillTech University. All rights reserved.
